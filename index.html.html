@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Youssef Space</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --cyan: #7df9ff;
+  --gold: #ffd97d;
+  --red: #ff5f5f;
+  --green: #7dff9f;
+  --dim: rgba(125,249,255,0.15);
+  --border: rgba(125,249,255,0.2);
+}
+body {
+  background: black;
+  overflow: hidden;
+  font-family: 'Share Tech Mono', monospace;
+  cursor: crosshair;
+}
+canvas { display: block; }
+
+/* HUD top-left */
+#hud {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  color: var(--cyan);
+  background: rgba(0,0,10,0.7);
+  padding: 10px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  font-size: 11px;
+  line-height: 1.8;
+  pointer-events: none;
+  font-family: 'Share Tech Mono', monospace;
+}
+#hud .label { color: rgba(125,249,255,0.5); }
+#hud .val { color: #fff; }
+
+/* Legend bottom-left */
+#legend {
+  position: fixed;
+  bottom: 14px;
+  left: 14px;
+  color: rgba(255,255,255,0.35);
+  font-size: 10px;
+  line-height: 2;
+  pointer-events: none;
+}
+
+/* Info Panel */
+#info-panel {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  width: 300px;
+  background: rgba(0,2,18,0.88);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  backdrop-filter: blur(16px);
+  overflow: hidden;
+  transform: translateX(330px);
+  transition: transform 0.45s cubic-bezier(0.22,1,0.36,1);
+  font-family: 'Share Tech Mono', monospace;
+  pointer-events: none;
+}
+#info-panel.open {
+  transform: translateX(0);
+}
+
+#panel-header {
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+#panel-swatch {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 12px currentColor;
+}
+#panel-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.08em;
+}
+#panel-type {
+  font-size: 9px;
+  color: var(--cyan);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+#panel-body {
+  padding: 14px 18px;
+}
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 11px;
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-key { color: rgba(125,249,255,0.55); }
+.stat-val { color: #e8f8ff; text-align: right; max-width: 160px; word-break: break-word; }
+
+#panel-desc {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 10.5px;
+  color: rgba(200,220,255,0.6);
+  line-height: 1.7;
+}
+
+#panel-moons {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: rgba(125,249,255,0.5);
+}
+#panel-moons strong { color: var(--cyan); display: block; margin-bottom: 4px; font-size: 9px; letter-spacing: 0.15em; }
+#panel-moons span { color: #ccc; }
+
+#close-btn {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  color: rgba(125,249,255,0.5);
+  cursor: pointer;
+  font-size: 14px;
+  pointer-events: all;
+  background: none;
+  border: none;
+  transition: color 0.2s;
+  font-family: 'Share Tech Mono', monospace;
+}
+#close-btn:hover { color: #fff; }
+
+/* Scan line overlay */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 2px);
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* Tooltip on hover */
+#tooltip {
+  position: fixed;
+  background: rgba(0,5,25,0.9);
+  border: 1px solid var(--border);
+  color: var(--cyan);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 10px;
+  pointer-events: none;
+  display: none;
+  font-family: 'Share Tech Mono', monospace;
+}
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <span class="label">SYSTEM</span> <span class="val" id="hud-system">SOL</span><br>
+  <span class="label">DIST  </span> <span class="val" id="hud-dist">—</span><br>
+  <span class="label">TRACK </span> <span class="val" id="hud-track">—</span><br>
+  <span class="label">BODIES</span> <span class="val" id="hud-bodies">—</span>
+</div>
+
+<div id="legend">
+  🖱 Drag to orbit &nbsp;|&nbsp; Scroll to zoom &nbsp;|&nbsp; Click body to inspect &nbsp;|&nbsp; ESC to release
+</div>
+
+<div id="info-panel">
+  <button id="close-btn">✕</button>
+  <div id="panel-header">
+    <div id="panel-swatch"></div>
+    <div>
+      <div id="panel-name">—</div>
+      <div id="panel-type">—</div>
+    </div>
+  </div>
+  <div id="panel-body">
+    <div id="panel-stats"></div>
+    <div id="panel-desc"></div>
+    <div id="panel-moons"></div>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<script type="module">
+import * as THREE from "https://esm.sh/three@0.160";
+import { OrbitControls } from "https://esm.sh/three@0.160/examples/jsm/controls/OrbitControls";
+import { EffectComposer } from "https://esm.sh/three@0.160/examples/jsm/postprocessing/EffectComposer";
+import { RenderPass } from "https://esm.sh/three@0.160/examples/jsm/postprocessing/RenderPass";
+import { UnrealBloomPass } from "https://esm.sh/three@0.160/examples/jsm/postprocessing/UnrealBloomPass";
+
+// ─── DATA ────────────────────────────────────────────────────────────────────
+const BODY_DATA = {
+  Sun: {
+    type: "Star (G-type Main Sequence)",
+    color: "#ff9900",
+    stats: {
+      "Age": "4.6 billion years",
+      "Diameter": "1,392,700 km",
+      "Mass": "1.989 × 10³⁰ kg",
+      "Surface Temp": "5,778 K",
+      "Core Temp": "15,000,000 K",
+      "Luminosity": "3.828 × 10²⁶ W",
+      "Rotation (equator)": "~25 days",
+      "Composition": "73% H₂, 25% He",
+    },
+    desc: "Our solar system's star, born from a collapsing nebula. Fuses ~620 million tonnes of hydrogen per second. Expected to become a red giant in ~5 billion years, expanding to engulf Mercury and Venus.",
+    moons: [],
+  },
+  Mercury: {
+    type: "Terrestrial Planet",
+    color: "#b5a9a0",
+    stats: {
+      "Orbital Period": "88 Earth days",
+      "Day Length": "59 Earth days",
+      "Diameter": "4,879 km",
+      "Mass": "3.30 × 10²³ kg",
+      "Gravity": "3.7 m/s²",
+      "Surface Temp": "−180 to 430°C",
+      "Distance from Sun": "0.39 AU",
+      "Moons": "0",
+    },
+    desc: "Smallest planet, covered in ancient craters. No atmosphere to retain heat so temperatures swing more than 600°C between day and night. A year on Mercury is only 88 Earth days.",
+    moons: [],
+  },
+  Venus: {
+    type: "Terrestrial Planet",
+    color: "#e8c97a",
+    stats: {
+      "Orbital Period": "225 Earth days",
+      "Day Length": "243 Earth days",
+      "Diameter": "12,104 km",
+      "Mass": "4.87 × 10²⁴ kg",
+      "Gravity": "8.87 m/s²",
+      "Surface Temp": "~465°C (avg)",
+      "Atmosphere": "96.5% CO₂",
+      "Distance from Sun": "0.72 AU",
+    },
+    desc: "Hottest planet despite not being closest to the Sun. A runaway greenhouse effect heats it to 465°C — hot enough to melt lead. Rotates backwards and so slowly that a Venusian day is longer than its year.",
+    moons: [],
+  },
+  Earth: {
+    type: "Terrestrial Planet",
+    color: "#2e6fcc",
+    stats: {
+      "Orbital Period": "365.25 days",
+      "Day Length": "24 hours",
+      "Diameter": "12,742 km",
+      "Mass": "5.97 × 10²⁴ kg",
+      "Gravity": "9.81 m/s²",
+      "Surface Temp": "−88 to 58°C",
+      "Atmosphere": "78% N₂, 21% O₂",
+      "Distance from Sun": "1.00 AU",
+    },
+    desc: "Our home, the only known planet harboring life. 71% of the surface is liquid water. The magnetic field deflects solar wind, protecting life on the surface.",
+    moons: ["Moon"],
+  },
+  Mars: {
+    type: "Terrestrial Planet",
+    color: "#c1440e",
+    stats: {
+      "Orbital Period": "687 Earth days",
+      "Day Length": "24h 37m",
+      "Diameter": "6,779 km",
+      "Mass": "6.39 × 10²³ kg",
+      "Gravity": "3.72 m/s²",
+      "Surface Temp": "−140 to 20°C",
+      "Atmosphere": "95% CO₂ (thin)",
+      "Distance from Sun": "1.52 AU",
+    },
+    desc: "The Red Planet. Home to Olympus Mons — the tallest volcano in the solar system at 21.9 km. Evidence suggests ancient liquid water flowed across its surface billions of years ago.",
+    moons: ["Phobos", "Deimos"],
+  },
+  Jupiter: {
+    type: "Gas Giant",
+    color: "#c48a5a",
+    stats: {
+      "Orbital Period": "11.9 Earth years",
+      "Day Length": "9h 56m",
+      "Diameter": "139,820 km",
+      "Mass": "1.90 × 10²⁷ kg",
+      "Gravity": "24.79 m/s²",
+      "Cloud Temp": "−145°C",
+      "Moons": "95 known",
+      "Distance from Sun": "5.20 AU",
+    },
+    desc: "Largest planet — all other planets could fit inside it twice over. The Great Red Spot is a storm that has raged for over 350 years. Its massive gravity acts as a shield, deflecting asteroids.",
+    moons: ["Io", "Europa", "Ganymede", "Callisto"],
+  },
+  Saturn: {
+    type: "Gas Giant",
+    color: "#e8d191",
+    stats: {
+      "Orbital Period": "29.5 Earth years",
+      "Day Length": "10h 33m",
+      "Diameter": "116,460 km",
+      "Mass": "5.68 × 10²⁶ kg",
+      "Gravity": "10.44 m/s²",
+      "Ring Width": "~282,000 km",
+      "Moons": "146 known",
+      "Distance from Sun": "9.58 AU",
+    },
+    desc: "The jewel of the solar system. Its iconic rings are made of ice and rock ranging from tiny grains to chunks as large as houses. Saturn is less dense than water — it would float in a large enough ocean.",
+    moons: ["Titan", "Rhea"],
+  },
+  Uranus: {
+    type: "Ice Giant",
+    color: "#7de8e8",
+    stats: {
+      "Orbital Period": "84 Earth years",
+      "Day Length": "17h 14m",
+      "Diameter": "50,724 km",
+      "Mass": "8.68 × 10²⁵ kg",
+      "Gravity": "8.69 m/s²",
+      "Temp (min)": "−224°C",
+      "Axial Tilt": "97.77°",
+      "Distance from Sun": "19.2 AU",
+    },
+    desc: "The sideways planet — its extreme 98° axial tilt means it orbits the Sun on its side. Its blue-green colour comes from methane in its atmosphere. Its extreme tilt is likely the result of an ancient massive collision.",
+    moons: ["Titania", "Oberon"],
+  },
+  Neptune: {
+    type: "Ice Giant",
+    color: "#2a3fd1",
+    stats: {
+      "Orbital Period": "165 Earth years",
+      "Day Length": "16h 6m",
+      "Diameter": "49,244 km",
+      "Mass": "1.02 × 10²⁶ kg",
+      "Gravity": "11.15 m/s²",
+      "Wind Speed": "up to 2,100 km/h",
+      "Moons": "16 known",
+      "Distance from Sun": "30.07 AU",
+    },
+    desc: "The windiest planet. Its supersonic winds reach 2,100 km/h — the fastest in the solar system. Takes 165 Earth years to complete one orbit; it only completed its first orbit since discovery in 2011.",
+    moons: ["Triton"],
+  },
+  // Moons
+  Moon: {
+    type: "Natural Satellite",
+    color: "#aaaaaa",
+    stats: {
+      "Orbital Period": "27.3 Earth days",
+      "Diameter": "3,474 km",
+      "Mass": "7.34 × 10²² kg",
+      "Gravity": "1.62 m/s²",
+      "Surface Temp": "−173 to 127°C",
+      "Distance from Earth": "384,400 km",
+      "Age": "~4.5 billion years",
+    },
+    desc: "Earth's only natural satellite, likely formed from debris after a Mars-sized body collided with young Earth. Its gravity causes ocean tides, and it stabilises Earth's axial tilt.",
+    moons: [],
+  },
+  Io: {
+    type: "Volcanic Moon (Jupiter)",
+    color: "#d4a96a",
+    stats: {
+      "Diameter": "3,642 km",
+      "Orbital Period": "1.77 days",
+      "Gravity": "1.796 m/s²",
+      "Surface Temp": "−130 to 1,600°C",
+    },
+    desc: "Most volcanically active body in the solar system. Jupiter's tidal forces continuously flex Io's interior, generating enormous heat that drives hundreds of active volcanoes.",
+    moons: [],
+  },
+  Europa: {
+    type: "Icy Moon (Jupiter)",
+    color: "#8899bb",
+    stats: {
+      "Diameter": "3,122 km",
+      "Orbital Period": "3.55 days",
+      "Gravity": "1.315 m/s²",
+      "Ocean Depth": "~100 km (estimated)",
+    },
+    desc: "Covered by a smooth icy crust hiding a vast subsurface ocean of liquid water. One of the best candidates in the solar system for extraterrestrial life.",
+    moons: [],
+  },
+  Ganymede: {
+    type: "Moon (Jupiter) — Largest in Solar System",
+    color: "#998877",
+    stats: {
+      "Diameter": "5,268 km",
+      "Orbital Period": "7.15 days",
+      "Gravity": "1.428 m/s²",
+      "Special": "Has its own magnetosphere",
+    },
+    desc: "The largest moon in the solar system — even larger than Mercury. It is the only moon known to have its own magnetic field, creating auroras at its poles.",
+    moons: [],
+  },
+  Callisto: {
+    type: "Moon (Jupiter)",
+    color: "#887766",
+    stats: {
+      "Diameter": "4,821 km",
+      "Orbital Period": "16.69 days",
+      "Gravity": "1.235 m/s²",
+      "Surface": "Heavily cratered ancient ice",
+    },
+    desc: "The most heavily cratered body in the solar system, its surface has barely changed for billions of years. Likely contains a subsurface saltwater ocean beneath its icy crust.",
+    moons: [],
+  },
+  Titan: {
+    type: "Moon (Saturn) — Dense Atmosphere",
+    color: "#eeddcc",
+    stats: {
+      "Diameter": "5,149 km",
+      "Orbital Period": "15.95 days",
+      "Atmosphere": "~1.45 atm (N₂, CH₄)",
+      "Surface Temp": "−179°C",
+    },
+    desc: "The only moon with a dense atmosphere and the only body besides Earth with stable liquid on its surface — though lakes of liquid methane and ethane, not water.",
+    moons: [],
+  },
+  Rhea: {
+    type: "Moon (Saturn)",
+    color: "#cccccc",
+    stats: {
+      "Diameter": "1,528 km",
+      "Orbital Period": "4.52 days",
+      "Gravity": "0.264 m/s²",
+    },
+    desc: "Saturn's second-largest moon, composed mostly of water ice with a small rocky core. Its heavily cratered surface suggests a very ancient, geologically inactive world.",
+    moons: [],
+  },
+  Phobos: {
+    type: "Moon (Mars)",
+    color: "#998877",
+    stats: {
+      "Diameter": "22.4 km",
+      "Orbital Period": "7h 39m",
+      "Gravity": "0.0057 m/s²",
+      "Fate": "Will crash into Mars in ~50M years",
+    },
+    desc: "The larger of Mars's two moons, Phobos orbits so close and so fast that it rises in the west and sets in the east — twice a day. Tidal forces are slowly pulling it toward Mars.",
+    moons: [],
+  },
+  Deimos: {
+    type: "Moon (Mars)",
+    color: "#887766",
+    stats: {
+      "Diameter": "12.4 km",
+      "Orbital Period": "30.3 hours",
+      "Gravity": "0.003 m/s²",
+    },
+    desc: "The smaller and more distant of Mars's moons. So small and distant that from the Martian surface, it appears as a tiny star-like point in the sky.",
+    moons: [],
+  },
+  Titania: {
+    type: "Moon (Uranus)",
+    color: "#aadddd",
+    stats: {
+      "Diameter": "1,578 km",
+      "Orbital Period": "8.7 days",
+      "Gravity": "0.379 m/s²",
+    },
+    desc: "Uranus's largest moon, with a surface marked by canyons up to 1,500 km long. May have a thin CO₂ atmosphere.",
+    moons: [],
+  },
+  Oberon: {
+    type: "Moon (Uranus)",
+    color: "#99cccc",
+    stats: {
+      "Diameter": "1,523 km",
+      "Orbital Period": "13.5 days",
+      "Gravity": "0.346 m/s²",
+    },
+    desc: "The outermost large moon of Uranus. Its dark reddish surface is heavily cratered, including a large mountain rising ~6 km that may be the central peak of an ancient impact basin.",
+    moons: [],
+  },
+  Triton: {
+    type: "Moon (Neptune) — Retrograde",
+    color: "#8899ee",
+    stats: {
+      "Diameter": "2,706 km",
+      "Orbital Period": "5.88 days (retrograde)",
+      "Surface Temp": "−235°C",
+      "Fate": "Will break apart in ~3.6 billion years",
+    },
+    desc: "The only large moon that orbits in the opposite direction of its planet's rotation — suggesting it was captured from the Kuiper Belt. Has geysers that shoot nitrogen gas 8 km high.",
+    moons: [],
+  },
+  // Extra bodies
+  Pluto: {
+    type: "Dwarf Planet",
+    color: "#c8a882",
+    stats: {
+      "Orbital Period": "248 Earth years",
+      "Diameter": "2,376 km",
+      "Mass": "1.30 × 10²² kg",
+      "Gravity": "0.62 m/s²",
+      "Surface Temp": "~−229°C",
+      "Distance from Sun": "~39.5 AU",
+    },
+    desc: "Demoted to dwarf planet status in 2006. New Horizons revealed a heart-shaped nitrogen ice plain (Tombaugh Regio) and mountains of water ice up to 3,500 m tall.",
+    moons: ["Charon"],
+  },
+  Charon: {
+    type: "Moon (Pluto) — Large Binary",
+    color: "#aaaacc",
+    stats: {
+      "Diameter": "1,212 km",
+      "Orbital Period": "6.39 days",
+      "Gravity": "0.288 m/s²",
+    },
+    desc: "So large relative to Pluto (half its diameter) that the two are considered a binary dwarf planet system. Both are tidally locked, always showing the same face to each other.",
+    moons: [],
+  },
+  Eris: {
+    type: "Dwarf Planet",
+    color: "#d4d0cc",
+    stats: {
+      "Orbital Period": "~559 Earth years",
+      "Diameter": "~2,326 km",
+      "Distance from Sun": "~38–97 AU",
+      "Surface Temp": "~−243°C",
+    },
+    desc: "The discovery of Eris in 2005 — more massive than Pluto — triggered the reclassification of Pluto as a dwarf planet. Currently 97 AU from the Sun, in the scattered disc.",
+    moons: ["Dysnomia"],
+  },
+  Halley: {
+    type: "Short-Period Comet",
+    color: "#aaccff",
+    stats: {
+      "Orbital Period": "~75 years",
+      "Nucleus Size": "~15 × 8 km",
+      "Next Perihelion": "2061",
+      "Observed since": "240 BCE",
+    },
+    desc: "The most famous comet, visible to the naked eye every 75–76 years. Its tail can span up to 100 million km. The Giotto probe flew within 600 km of its nucleus in 1986.",
+    moons: [],
+  },
+};
+
+// ─── SCENE SETUP ─────────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 20000);
+camera.position.set(0, 60, 145);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ReinhardToneMapping;
+renderer.toneMappingExposure = 2.2;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.5, 0.55, 0.07));
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 2;
+controls.maxDistance = 900;
+
+scene.add(new THREE.AmbientLight(0x223355, 3.5));
+const sunLight = new THREE.PointLight(0xfff5cc, 12, 0);
+scene.add(sunLight);
+const fill = new THREE.DirectionalLight(0x5566aa, 1.5);
+fill.position.set(-100, 60, -100);
+scene.add(fill);
+
+// Stars
+const sv = [];
+for (let i = 0; i < 10000; i++) {
+  const r = 2500 + Math.random() * 2500;
+  const t = Math.random() * Math.PI * 2;
+  const p = Math.acos(2 * Math.random() - 1);
+  sv.push(r * Math.sin(p) * Math.cos(t), r * Math.sin(p) * Math.sin(t), r * Math.cos(p));
+}
+const sg = new THREE.BufferGeometry();
+sg.setAttribute("position", new THREE.Float32BufferAttribute(sv, 3));
+scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ size: 0.9, color: 0xffffff, sizeAttenuation: true })));
+
+// Sun
+const sunMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(7, 64, 64),
+  new THREE.MeshStandardMaterial({
+    color: "#ff9900", emissive: "#ff6000", emissiveIntensity: 2.2, roughness: 1.0,
+  })
+);
+sunMesh.userData = { name: "Sun" };
+scene.add(sunMesh);
+
+const GM = 128.0;
+const orbitObjects = [];
+const fixedOrbiters = [];
+const clickableMeshes = [sunMesh];
+
+function makeOrbitLine(dist, color = 0x0d1f2d) {
+  const pts = [];
+  for (let i = 0; i <= 160; i++) {
+    const a = (i / 160) * Math.PI * 2;
+    pts.push(new THREE.Vector3(Math.cos(a) * dist, 0, Math.sin(a) * dist));
+  }
+  const line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.3 })
+  );
+  scene.add(line);
+}
+
+function makePlanet({ name, radius, dist, color, tilt = 0, roughness = 0.8, metalness = 0.1, emissive, emissiveIntensity = 0 }) {
+  const mat = { color: new THREE.Color(color), roughness, metalness };
+  if (emissive) { mat.emissive = new THREE.Color(emissive); mat.emissiveIntensity = emissiveIntensity; }
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 64, 64), new THREE.MeshStandardMaterial(mat));
+  mesh.rotation.z = THREE.MathUtils.degToRad(tilt);
+  const speed = Math.sqrt(GM / dist);
+  mesh.position.set(dist, 0, 0);
+  mesh.userData = { name, velocity: new THREE.Vector3(0, 0, speed), isOrbiter: true };
+  scene.add(mesh);
+  orbitObjects.push(mesh);
+  clickableMeshes.push(mesh);
+  makeOrbitLine(dist);
+  return mesh;
+}
+
+const mercury = makePlanet({ name: "Mercury", radius: 0.8, dist: 13,  color: "#b5a9a0", roughness: 0.95 });
+const venus   = makePlanet({ name: "Venus",   radius: 1.3, dist: 19,  color: "#e8c97a", roughness: 0.7,  tilt: 177 });
+const earth   = makePlanet({ name: "Earth",   radius: 1.4, dist: 28,  color: "#2e6fcc", roughness: 0.6,  metalness: 0.05, tilt: 23 });
+const mars    = makePlanet({ name: "Mars",    radius: 1.1, dist: 37,  color: "#c1440e", roughness: 0.9,  tilt: 25 });
+const jupiter = makePlanet({ name: "Jupiter", radius: 3.2, dist: 52,  color: "#c48a5a", roughness: 0.6,  tilt: 3 });
+const saturn  = makePlanet({ name: "Saturn",  radius: 2.8, dist: 68,  color: "#e8d191", roughness: 0.65, tilt: 27 });
+const uranus  = makePlanet({ name: "Uranus",  radius: 2.0, dist: 86,  color: "#7de8e8", roughness: 0.4,  metalness: 0.15, tilt: 98 });
+const neptune = makePlanet({ name: "Neptune", radius: 1.9, dist: 103, color: "#2a3fd1", roughness: 0.45, metalness: 0.1,  tilt: 28 });
+
+// Pluto
+const pluto = makePlanet({ name: "Pluto",   radius: 0.55, dist: 128, color: "#c8a882", roughness: 0.9, tilt: 122 });
+
+// Eris (inclined orbit)
+const eris = new THREE.Mesh(
+  new THREE.SphereGeometry(0.5, 32, 32),
+  new THREE.MeshStandardMaterial({ color: "#d4d0cc", roughness: 0.95 })
+);
+eris.position.set(155, 18, 0);
+eris.userData = { name: "Eris", velocity: new THREE.Vector3(0, 0, Math.sqrt(GM / 155)), isOrbiter: true };
+scene.add(eris);
+orbitObjects.push(eris);
+clickableMeshes.push(eris);
+
+// Halley's Comet — highly elliptical parametric orbit
+const halleyOrbit = { a: 90, e: 0.967, angle: 0, speed: 0.0008, incline: 18 };
+const halleyMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(0.35, 16, 16),
+  new THREE.MeshStandardMaterial({ color: "#aaccff", emissive: "#4488ff", emissiveIntensity: 0.8, roughness: 0.5 })
+);
+halleyMesh.userData = { name: "Halley", isComet: true };
+scene.add(halleyMesh);
+clickableMeshes.push(halleyMesh);
+// Comet tail
+const tailGeo = new THREE.CylinderGeometry(0, 0.4, 6, 8);
+const tailMat = new THREE.MeshBasicMaterial({ color: "#88aaff", transparent: true, opacity: 0.35 });
+const tailMesh = new THREE.Mesh(tailGeo, tailMat);
+halleyMesh.add(tailMesh);
+
+// Saturn rings
+const ringMesh = new THREE.Mesh(
+  new THREE.RingGeometry(4, 6.8, 80),
+  new THREE.MeshBasicMaterial({ color: 0xc8a96e, side: THREE.DoubleSide, transparent: true, opacity: 0.75 })
+);
+ringMesh.rotation.x = Math.PI / 2;
+saturn.add(ringMesh);
+
+// Uranus rings (thin)
+const uRing = new THREE.Mesh(
+  new THREE.RingGeometry(2.9, 3.4, 64),
+  new THREE.MeshBasicMaterial({ color: 0x55aaaa, side: THREE.DoubleSide, transparent: true, opacity: 0.3 })
+);
+uRing.rotation.x = Math.PI / 2;
+uranus.add(uRing);
+
+// Earth clouds layer
+const cloudMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(1.48, 48, 48),
+  new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.25, roughness: 1 })
+);
+earth.add(cloudMesh);
+
+// Jupiter bands
+const jBandMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(3.22, 64, 64),
+  new THREE.MeshStandardMaterial({ color: "#8a5a2a", roughness: 0.55, transparent: true, opacity: 0.45 })
+);
+jupiter.add(jBandMesh);
+
+// Moons factory
+function makeMoon({ parent, radius, dist, speed, color = 0xcccccc, name }) {
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 24, 24),
+    new THREE.MeshStandardMaterial({ color })
+  );
+  const startAngle = Math.random() * Math.PI * 2;
+  mesh.userData = { name, isMoon: true, parent, dist, speed, angle: startAngle };
+  scene.add(mesh);
+  fixedOrbiters.push(mesh);
+  clickableMeshes.push(mesh);
+  return mesh;
+}
+
+makeMoon({ parent: earth,   radius: 0.35, dist: 3.0, speed: 0.025, color: 0xaaaaaa, name: "Moon" });
+makeMoon({ parent: mars,    radius: 0.12, dist: 2.0, speed: 0.055, color: 0x998877, name: "Phobos" });
+makeMoon({ parent: mars,    radius: 0.10, dist: 2.9, speed: 0.035, color: 0x887766, name: "Deimos" });
+makeMoon({ parent: jupiter, radius: 0.28, dist: 4.5, speed: 0.040, color: 0xd4a96a, name: "Io" });
+makeMoon({ parent: jupiter, radius: 0.30, dist: 5.8, speed: 0.028, color: 0x8899bb, name: "Europa" });
+makeMoon({ parent: jupiter, radius: 0.38, dist: 7.2, speed: 0.018, color: 0x998877, name: "Ganymede" });
+makeMoon({ parent: jupiter, radius: 0.32, dist: 8.8, speed: 0.012, color: 0x887766, name: "Callisto" });
+makeMoon({ parent: saturn,  radius: 0.22, dist: 4.2, speed: 0.035, color: 0xeeddcc, name: "Titan" });
+makeMoon({ parent: saturn,  radius: 0.15, dist: 5.5, speed: 0.022, color: 0xcccccc, name: "Rhea" });
+makeMoon({ parent: uranus,  radius: 0.18, dist: 3.2, speed: 0.030, color: 0xaadddd, name: "Titania" });
+makeMoon({ parent: uranus,  radius: 0.15, dist: 4.1, speed: 0.020, color: 0x99cccc, name: "Oberon" });
+makeMoon({ parent: neptune, radius: 0.20, dist: 3.0, speed: 0.038, color: 0x8899ee, name: "Triton" });
+makeMoon({ parent: pluto,   radius: 0.25, dist: 1.4, speed: 0.020, color: 0xaaaacc, name: "Charon" });
+
+// Asteroid belt
+for (let i = 0; i < 350; i++) {
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(Math.random() * 0.18 + 0.04, 6, 6),
+    new THREE.MeshStandardMaterial({ color: 0x887755, roughness: 1 })
+  );
+  const angle = Math.random() * Math.PI * 2;
+  const radius = 42 + Math.random() * 6;
+  const yOff = (Math.random() - 0.5) * 1.5;
+  const speed = Math.sqrt(GM / radius) * 0.012;
+  mesh.userData = { isBelt: true, angle, radius, speed, yOff };
+  mesh.position.set(Math.cos(angle) * radius, yOff, Math.sin(angle) * radius);
+  scene.add(mesh);
+  fixedOrbiters.push(mesh);
+}
+
+// Kuiper belt (beyond Neptune)
+for (let i = 0; i < 200; i++) {
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(Math.random() * 0.25 + 0.05, 6, 6),
+    new THREE.MeshStandardMaterial({ color: 0x667788, roughness: 1 })
+  );
+  const angle = Math.random() * Math.PI * 2;
+  const radius = 110 + Math.random() * 25;
+  const yOff = (Math.random() - 0.5) * 8;
+  const speed = Math.sqrt(GM / radius) * 0.008;
+  mesh.userData = { isBelt: true, angle, radius, speed, yOff };
+  mesh.position.set(Math.cos(angle) * radius, yOff, Math.sin(angle) * radius);
+  scene.add(mesh);
+  fixedOrbiters.push(mesh);
+}
+
+// ─── INTERACTION ─────────────────────────────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+raycaster.params.Points = { threshold: 0.5 };
+const mouse = new THREE.Vector2();
+let focusTarget = null;
+let hoveredName = null;
+
+const panel = document.getElementById("info-panel");
+const panelName = document.getElementById("panel-name");
+const panelType = document.getElementById("panel-type");
+const panelSwatch = document.getElementById("panel-swatch");
+const panelStats = document.getElementById("panel-stats");
+const panelDesc = document.getElementById("panel-desc");
+const panelMoons = document.getElementById("panel-moons");
+const tooltip = document.getElementById("tooltip");
+
+function showPanel(name) {
+  const data = BODY_DATA[name];
+  if (!data) return;
+  panelName.textContent = name;
+  panelType.textContent = data.type;
+  panelSwatch.style.background = data.color;
+  panelSwatch.style.boxShadow = `0 0 14px ${data.color}`;
+
+  panelStats.innerHTML = Object.entries(data.stats)
+    .map(([k, v]) => `<div class="stat-row"><span class="stat-key">${k}</span><span class="stat-val">${v}</span></div>`)
+    .join("");
+
+  panelDesc.textContent = data.desc;
+
+  if (data.moons && data.moons.length) {
+    panelMoons.innerHTML = `<strong>KNOWN MOONS (SIMULATED)</strong><span>${data.moons.join(" · ")}</span>`;
+    panelMoons.style.display = "block";
+  } else {
+    panelMoons.style.display = "none";
+  }
+
+  panel.classList.add("open");
+  panel.style.pointerEvents = "all";
+}
+
+function hidePanel() {
+  panel.classList.remove("open");
+  panel.style.pointerEvents = "none";
+  focusTarget = null;
+}
+
+renderer.domElement.addEventListener("mousemove", e => {
+  mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(clickableMeshes, false);
+  if (hits.length) {
+    const name = hits[0].object.userData.name;
+    if (name) {
+      tooltip.style.display = "block";
+      tooltip.style.left = (e.clientX + 14) + "px";
+      tooltip.style.top = (e.clientY - 8) + "px";
+      tooltip.textContent = name;
+      document.body.style.cursor = "pointer";
+    }
+  } else {
+    tooltip.style.display = "none";
+    document.body.style.cursor = "crosshair";
+  }
+});
+
+renderer.domElement.addEventListener("click", e => {
+  mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(clickableMeshes, false);
+  if (hits.length) {
+    const obj = hits[0].object;
+    const name = obj.userData.name;
+    if (name) {
+      focusTarget = obj;
+      showPanel(name);
+    }
+  }
+});
+
+document.getElementById("close-btn").addEventListener("click", hidePanel);
+window.addEventListener("keydown", e => { if (e.key === "Escape") hidePanel(); });
+
+window.addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+});
+
+// ─── ANIMATION ───────────────────────────────────────────────────────────────
+const DT = 0.016;
+const SUBSTEPS = 4;
+const dt = DT / SUBSTEPS;
+let t = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  t += DT;
+
+  // Newtonian gravity for planets
+  for (let s = 0; s < SUBSTEPS; s++) {
+    for (const p of orbitObjects) {
+      const d = p.position.length();
+      if (d < 0.01) continue;
+      const acc = p.position.clone().normalize().multiplyScalar(-GM / (d * d));
+      p.userData.velocity.addScaledVector(acc, dt);
+      p.position.addScaledVector(p.userData.velocity, dt);
+    }
+  }
+
+  // Parametric moons & belt
+  for (const m of fixedOrbiters) {
+    const ud = m.userData;
+    if (ud.isMoon) {
+      ud.angle += ud.speed;
+      const px = ud.parent.position;
+      m.position.set(px.x + Math.cos(ud.angle) * ud.dist, px.y, px.z + Math.sin(ud.angle) * ud.dist);
+    } else if (ud.isBelt) {
+      ud.angle += ud.speed;
+      m.position.set(Math.cos(ud.angle) * ud.radius, ud.yOff, Math.sin(ud.angle) * ud.radius);
+    }
+  }
+
+  // Halley's comet — Keplerian parametric
+  halleyOrbit.angle += halleyOrbit.speed;
+  const a = halleyOrbit.a;
+  const e = halleyOrbit.e;
+  const θ = halleyOrbit.angle;
+  const r = (a * (1 - e * e)) / (1 + e * Math.cos(θ));
+  const hx = r * Math.cos(θ);
+  const hz = r * Math.sin(θ);
+  const hy = Math.sin(THREE.MathUtils.degToRad(halleyOrbit.incline)) * hz;
+  halleyMesh.position.set(hx, hy, hz);
+  // Point tail away from sun
+  const sunDir = halleyMesh.position.clone().normalize();
+  tailMesh.position.copy(sunDir.multiplyScalar(0.8));
+  tailMesh.lookAt(halleyMesh.position.clone().add(sunDir.clone().multiplyScalar(10)));
+
+  // Self-rotations
+  sunMesh.rotation.y += 0.002;
+  cloudMesh.rotation.y += 0.0015;
+  for (const p of orbitObjects) p.rotation.y += 0.005;
+
+  // Camera focus
+  if (focusTarget) {
+    const wp = focusTarget.getWorldPosition(new THREE.Vector3());
+    const r2 = focusTarget.geometry?.parameters?.radius ?? 1;
+    const offset = new THREE.Vector3(r2 * 5 + 5, r2 * 2.5 + 3, r2 * 5 + 5);
+    camera.position.lerp(wp.clone().add(offset), 0.04);
+    controls.target.lerp(wp, 0.06);
+  }
+
+  controls.update();
+  composer.render();
+
+  // HUD
+  const dist = camera.position.length().toFixed(1);
+  const track = focusTarget ? (focusTarget.userData.name || "—") : "—";
+  document.getElementById("hud-dist").textContent = dist + " AU";
+  document.getElementById("hud-track").textContent = track;
+  document.getElementById("hud-bodies").textContent = clickableMeshes.length;
+}
+
+animate();
+</script>
+</body>
+</html>
